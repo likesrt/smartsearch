@@ -105,7 +105,8 @@ AnySearch:
 - HTTP 200 responses with `result.isError=true` must return `ok=false`, `error_type=provider_error`, and no successful source results.
 - Markdown URL/title/snippet candidates should be parsed into `results`, while raw text remains in `content` and `raw_content`.
 - Structured results without URLs must be preserved as raw/structured evidence, not dropped.
-- Dotted vertical domain shorthand such as `security.cve` must be normalized to `domain=security` plus `sub_domain=cve` before calling AnySearch.
+- Call `anysearch-domains DOMAIN` to discover current sub-domains before vertical search. Some capabilities require a structured JSON object through `--sub-domain-params`.
+- Dotted domain shorthand remains a compatibility input and is normalized to separate `domain` and `sub_domain` arguments, but it must not replace capability discovery.
 - `anysearch-batch` accepts at most 5 CLI query strings and returns `error_type=parameter_error` without sending a request when the limit is exceeded.
 
 OpenAI-compatible streaming:

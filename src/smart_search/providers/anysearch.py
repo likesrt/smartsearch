@@ -39,15 +39,18 @@ def _extract_text(result: dict[str, Any]) -> str:
     return ""
 
 
-def _parse_markdown_results(text: str) -> list[dict[str, str]]:
-    results: list[dict[str, str]] = []
-    current: dict[str, str] | None = None
+def _parse_markdown_results(text: str) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
     for line in text.splitlines():
-        heading = re.match(r"^###\s+\d+\.\s+(.+?)\s*$", line)
+        heading = re.match(r"^###\s+(?:\d+\.\s+)?(.+?)\s*$", line)
         if heading:
             if current:
                 results.append(current)
-            current = {"title": heading.group(1).strip(), "url": "", "description": ""}
+            title = heading.group(1).strip()
+            current = {"title": title, "url": "", "description": ""}
+            if "." in title and not title.startswith(("http://", "https://")):
+                current["evidence_type"] = "sub_domain"
             continue
         if current is None:
             continue
@@ -89,14 +92,27 @@ class AnySearchProvider(BaseSearchProvider):
         return await self.call_tool("search", {"query": query, "max_results": max_results})
 
     async def list_domains(self, domain: str = "") -> str:
-        arguments = {"domain": domain} if domain else {}
-        return await self.call_tool("list_domains", arguments)
+        if not domain:
+            return json.dumps(
+                {
+                    "ok": False,
+                    "provider": "anysearch",
+                    "tool": "get_sub_domains",
+                    "error_type": "parameter_error",
+                    "error": "domain is required; run `smart-search anysearch-domains DOMAIN`",
+                    "elapsed_ms": 0,
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        return await self.call_tool("get_sub_domains", {"domain": domain})
 
     async def vertical_search(
         self,
         query: str,
         domain: str = "",
         sub_domain: str = "",
+        sub_domain_params: dict[str, Any] | None = None,
         max_results: int = 5,
     ) -> str:
         arguments: dict[str, Any] = {"query": query, "max_results": max_results}
@@ -105,6 +121,8 @@ class AnySearchProvider(BaseSearchProvider):
             arguments["domain"] = domain
         if sub_domain:
             arguments["sub_domain"] = sub_domain
+        if sub_domain_params:
+            arguments["sub_domain_params"] = sub_domain_params
         return await self.call_tool("search", arguments)
 
     async def extract(self, url: str, max_length: int = 20000) -> str:
@@ -137,7 +155,11 @@ class AnySearchProvider(BaseSearchProvider):
             "method": "tools/call",
             "params": {"name": name, "arguments": arguments},
         }
-        headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "X-Anysearch-Client": "mcp/1.0.0",
+        }
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
@@ -197,7 +219,7 @@ class AnySearchProvider(BaseSearchProvider):
             "total": len(parsed_results),
             "elapsed_ms": round((time.time() - start) * 1000, 2),
         }
-        for key in ("query", "domain", "sub_domain", "url"):
+        for key in ("query", "domain", "sub_domain", "sub_domain_params", "url"):
             if arguments.get(key):
                 output[key] = arguments[key]
         if is_error:

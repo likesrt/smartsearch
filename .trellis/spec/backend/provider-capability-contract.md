@@ -74,6 +74,7 @@ smart-search anysearch-domains [DOMAIN] --format json|markdown|content
 smart-search anysearch-search QUERY
   [--domain DOMAIN]
   [--sub-domain SUBDOMAIN]
+  [--sub-domain-params JSON_OBJECT]
   [--max-results N]
   [--format json|markdown|content]
 smart-search anysearch-extract URL [--max-length N] --format json|markdown|content
@@ -369,8 +370,11 @@ AnySearch boundary:
   explicit `anysearch-*` CLI commands and capability diagnostics.
 - Do not insert AnySearch into `web_search`, `docs_search`, `web_fetch`, or
   `main_search` fallback chains without a separate acceptance/routing task.
-- AnySearch uses JSON-RPC 2.0 `tools/call` with tool names `list_domains`,
-  `search`, `extract`, and `batch_search`.
+- AnySearch uses JSON-RPC 2.0 `tools/call` with current tool names
+  `get_sub_domains`, `search`, `extract`, and `batch_search`.
+- `anysearch-domains` requires a parent domain and calls `get_sub_domains`.
+  Vertical callers must discover current sub-domains before searching; some
+  sub-domains require a JSON object through `--sub-domain-params`.
 - AnySearch search/extract results must preserve raw markdown/text content.
   URL/title/snippet candidates should be extracted when present, but
   structured evidence without URLs must remain in the result instead of being

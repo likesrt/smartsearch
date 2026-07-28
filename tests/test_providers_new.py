@@ -133,7 +133,27 @@ async def test_context7_provider_normalizes_library_results(monkeypatch):
         async def get(self, endpoint, headers):
             return httpx.Response(
                 200,
-                json=[{"id": "/facebook/react", "title": "React", "description": "UI"}],
+                json=[
+                    {
+                        "id": "/reactjs/react.dev",
+                        "title": "React",
+                        "description": "Official React documentation",
+                        "trustScore": 10,
+                        "benchmarkScore": 88.52,
+                        "score": 250,
+                        "verified": True,
+                        "vip": True,
+                    },
+                    {
+                        "id": "/devopshq/artifactory-cleanup",
+                        "title": "Artifactory Cleanup",
+                        "description": "Cleanup jobs",
+                        "trustScore": 9.2,
+                        "benchmarkScore": 48,
+                        "score": 452,
+                        "verified": True,
+                    },
+                ],
                 headers={"content-type": "application/json"},
                 request=httpx.Request("GET", endpoint),
             )
@@ -144,8 +164,107 @@ async def test_context7_provider_normalizes_library_results(monkeypatch):
     data = json.loads(await provider.library("react", "hooks"))
 
     assert data["ok"] is True
-    assert data["results"][0]["id"] == "/facebook/react"
+    assert data["results"][0]["id"] == "/reactjs/react.dev"
+    assert data["results"][0]["verified"] is True
+    assert data["results"][0]["vip"] is True
+    assert data["results"][0]["score"] == 250
     assert data["results"][0]["provider"] == "context7"
+
+
+@pytest.mark.asyncio
+async def test_context7_docs_normalizes_content_only_response(monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, timeout, follow_redirects=True):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, endpoint, headers):
+            return httpx.Response(
+                200,
+                json={"content": "### Corrected Effect\nReturn a cleanup function."},
+                headers={"content-type": "application/json"},
+                request=httpx.Request("GET", endpoint),
+            )
+
+    monkeypatch.setattr("smart_search.providers.context7.httpx.AsyncClient", FakeAsyncClient)
+    provider = Context7Provider("https://context7.com", "key")
+
+    data = json.loads(await provider.docs("/reactjs/react.dev", "useEffect cleanup"))
+
+    assert data["ok"] is True
+    assert data["content"].startswith("### Corrected Effect")
+    assert data["total"] == 1
+    assert data["results"][0]["evidence_type"] == "documentation"
+    assert data["results"][0]["content"] == data["content"]
+    assert data["raw_response"]["content"] == data["content"]
+
+
+@pytest.mark.asyncio
+async def test_context7_docs_unwraps_json_string_content(monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, timeout, follow_redirects=True):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, endpoint, headers):
+            return httpx.Response(
+                200,
+                json={"content": json.dumps({"content": "React cleanup docs"})},
+                headers={"content-type": "application/json"},
+                request=httpx.Request("GET", endpoint),
+            )
+
+    monkeypatch.setattr("smart_search.providers.context7.httpx.AsyncClient", FakeAsyncClient)
+    provider = Context7Provider("https://context7.com", "key")
+
+    data = json.loads(await provider.docs("/reactjs/react.dev", "cleanup"))
+
+    assert data["content"] == "React cleanup docs"
+    assert data["total"] == 1
+
+
+@pytest.mark.asyncio
+async def test_context7_docs_reports_library_redirect(monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, timeout, follow_redirects=True):
+            self.timeout = timeout
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def get(self, endpoint, headers):
+            return httpx.Response(
+                301,
+                json={
+                    "error": "library_redirected",
+                    "message": "Library /facebook/react has been redirected",
+                    "redirectUrl": "/react/react",
+                },
+                headers={"content-type": "application/json"},
+                request=httpx.Request("GET", endpoint),
+            )
+
+    monkeypatch.setattr("smart_search.providers.context7.httpx.AsyncClient", FakeAsyncClient)
+    provider = Context7Provider("https://context7.com", "key")
+
+    data = json.loads(await provider.docs("/facebook/react", "hooks"))
+
+    assert data["ok"] is False
+    assert data["error_type"] == "library_redirected"
+    assert data["redirected_to"] == "/react/react"
 
 
 @pytest.mark.asyncio

@@ -2455,10 +2455,40 @@ async def _run_async(args: argparse.Namespace) -> int:
         data = await service.anysearch_domains(args.domain)
         return _print_result("anysearch-domains", data, args.format, args.output)
     if args.command == "anysearch-search":
+        sub_domain_params: dict[str, Any] | None = None
+        if args.sub_domain_params:
+            try:
+                parsed_params = json.loads(args.sub_domain_params)
+            except json.JSONDecodeError as exc:
+                return _print_result(
+                    "anysearch-search",
+                    {
+                        "ok": False,
+                        "provider": "anysearch",
+                        "error_type": "parameter_error",
+                        "error": f"--sub-domain-params must be valid JSON: {exc.msg}",
+                    },
+                    args.format,
+                    args.output,
+                )
+            if not isinstance(parsed_params, dict):
+                return _print_result(
+                    "anysearch-search",
+                    {
+                        "ok": False,
+                        "provider": "anysearch",
+                        "error_type": "parameter_error",
+                        "error": "--sub-domain-params must decode to a JSON object",
+                    },
+                    args.format,
+                    args.output,
+                )
+            sub_domain_params = parsed_params
         data = await service.anysearch_search(
             args.query,
             domain=args.domain,
             sub_domain=args.sub_domain,
+            sub_domain_params=sub_domain_params,
             max_results=args.max_results,
         )
         return _print_result("anysearch-search", data, args.format, args.output)
@@ -2886,6 +2916,11 @@ def build_parser() -> argparse.ArgumentParser:
     anysearch_search_parser.add_argument("query")
     anysearch_search_parser.add_argument("--domain", default="")
     anysearch_search_parser.add_argument("--sub-domain", default="")
+    anysearch_search_parser.add_argument(
+        "--sub-domain-params",
+        default="",
+        help="JSON object required by some AnySearch sub-domains.",
+    )
     anysearch_search_parser.add_argument("--max-results", type=int, default=5)
     _add_format_args(anysearch_search_parser)
 

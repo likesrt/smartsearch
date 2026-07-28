@@ -353,12 +353,12 @@ AnySearch 是可选实验配置，不满足也不改变 `standard` 最低配置�
 ```powershell
 smart-search setup --non-interactive --anysearch-api-url "https://api.anysearch.com/mcp" --anysearch-key "your-anysearch-key"
 smart-search anysearch-domains security --format json
-smart-search anysearch-search "CVE-2024-3094" --domain security.cve --max-results 3 --format json
+smart-search anysearch-search "CVE-2024-3094" --domain security --sub-domain vuln --sub-domain-params '{"type":"cve","value":"CVE-2024-3094"}' --max-results 3 --format json
 smart-search anysearch-extract "https://example.com/source" --format json
 smart-search anysearch-batch "AAPL" "RAG papers" --max-results 2 --format json
 ```
 
-垂直域支持点号简写：`security.cve` 会由 CLI 发成 `domain=security` 加 `sub_domain=cve`。也可以显式写成 `--domain security --sub-domain cve`。
+执行垂直搜索前，先用 `anysearch-domains DOMAIN` 发现当前能力。部分子域要求通过 `--sub-domain-params` 传入 JSON 对象；当前 CVE 能力使用 `domain=security`、`sub_domain=vuln` 和上例中的结构化参数。为兼容旧调用仍保留点号简写，但它不能替代能力发现。
 
 本机配置文件位置：
 
@@ -460,13 +460,13 @@ smart-search search "query" --stream --format json
 smart-search search "query" --no-stream --format json
 smart-search search "nba战报" --format content
 smart-search exa-search "OpenAI Responses API documentation" --include-domains platform.openai.com developers.openai.com --num-results 5 --include-text --format json
-smart-search context7-library "react" "hooks" --format json
-smart-search context7-docs "/facebook/react" "useEffect cleanup" --format json
+smart-search context7-library "react" "React 官方 useEffect 文档" --format json
+smart-search context7-docs "<上一步返回的 library_id>" "useEffect cleanup" --format json
 smart-search zhipu-search "今天国内 AI 新闻" --search-engine search_pro_sogou --count 5 --format json
 smart-search zhipu-mcp-search "今天国内 AI 新闻" --count 5 --format json
 smart-search zhipu-mcp-reader "https://example.com/source" --format json
 smart-search zhipu-mcp-search-doc "owner/repo" "install" --format json
-smart-search anysearch-search "CVE-2024-3094" --domain security.cve --max-results 3 --format json
+smart-search anysearch-search "CVE-2024-3094" --domain security --sub-domain vuln --sub-domain-params '{"type":"cve","value":"CVE-2024-3094"}' --max-results 3 --format json
 smart-search anysearch-extract "https://example.com/source" --format json
 smart-search exa-similar "https://example.com/source" --num-results 5 --format json
 smart-search fetch "https://example.com/source" --format markdown --output page.md

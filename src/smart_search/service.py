@@ -1267,12 +1267,21 @@ async def research(
         for provider in selected_docs_providers:
             step_start = time.time()
             if provider == "context7":
-                data = await context7_library(question, question)
+                # Pass the intent once. Context7Provider.library() already joins
+                # name and query, so using the same value for both weakens the
+                # search by duplicating every term.
+                data = await context7_library(question)
                 if data.get("ok") and data.get("results"):
                     provider_attempts.append(_attempt("docs_search", "context7", "ok", step_start, result_count=len(data.get("results") or [])))
                     stage_results.append({"stage": "docs_discovery", "provider": "context7", "ok": True, "result_count": len(data.get("results") or [])})
-                    library_id = (data.get("results") or [{}])[0].get("id", "")
-                    if library_id:
+                    # Candidates are intent-ranked by Context7Provider. Try a
+                    # small bounded set so a stale id, redirect, or empty first
+                    # candidate does not discard otherwise valid docs evidence.
+                    context7_evidence_added = False
+                    for candidate in (data.get("results") or [])[:3]:
+                        library_id = candidate.get("id", "")
+                        if not library_id:
+                            continue
                         docs_start = time.time()
                         docs_data = await context7_docs(library_id, question)
                         if docs_data.get("ok") and docs_data.get("content"):
@@ -1286,10 +1295,13 @@ async def research(
                                 subquestion_id="sq2",
                             )
                             evidence_items.append(item)
+                            context7_evidence_added = True
                             _write_research_artifact(evidence_root, "docs-context7.md", docs_data.get("content", ""))
                             break
                         docs_status = "error" if docs_data.get("error_type") else "empty"
                         provider_attempts.append(_attempt("docs_search", "context7", docs_status, docs_start, error_type=docs_data.get("error_type", ""), error=docs_data.get("error", "")))
+                    if context7_evidence_added:
+                        break
                     if fallback_mode == "off":
                         break
                     continue
@@ -1813,7 +1825,7 @@ async def _run_docs_search_fallback(
                 status = "error" if data.get("error_type") in {"auth_error", "parameter_error", "rate_limited", "timeout", "network_error", "runtime_error"} else "empty"
                 attempts.append(_attempt("docs_search", provider, status, start, error_type=data.get("error_type", ""), error=data.get("error", "")))
             elif provider == "context7":
-                data = await context7_library(query, query)
+                data = await context7_library(query)
                 if data.get("ok"):
                     sources = [
                         {
@@ -3023,12 +3035,19 @@ async def anysearch_domains(domain: str = "") -> dict[str, Any]:
     return await _decode_provider_json(await _anysearch_provider().list_domains(domain))
 
 
-async def anysearch_search(query: str, domain: str = "", sub_domain: str = "", max_results: int = 5) -> dict[str, Any]:
+async def anysearch_search(
+    query: str,
+    domain: str = "",
+    sub_domain: str = "",
+    sub_domain_params: dict[str, Any] | None = None,
+    max_results: int = 5,
+) -> dict[str, Any]:
     return await _decode_provider_json(
         await _anysearch_provider().vertical_search(
             query=query,
             domain=domain,
             sub_domain=sub_domain,
+            sub_domain_params=sub_domain_params,
             max_results=max_results,
         )
     )
