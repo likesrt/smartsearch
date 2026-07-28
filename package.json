@@ -1,5 +1,5 @@
 {
-  "name": "@konbakuyomu/smart-search",
+  "name": "@likesrt/smart-search",
   "version": "0.1.14",
   "description": "CLI-first multi-source web research with xAI/OpenAI-compatible search, Exa, Context7, Zhipu, Tavily, Firecrawl, and Deep Research planning.",
   "license": "MIT",
